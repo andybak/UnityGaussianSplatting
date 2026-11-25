@@ -12,6 +12,7 @@ namespace GaussianSplatting.Editor
         SerializedProperty m_PropScript;
         SerializedProperty m_PropTransparency;
         SerializedProperty m_PropTemporalFilter;
+        SerializedProperty m_PropSortAngle;
         SerializedProperty m_PropRenderMode;
         SerializedProperty m_PropPointSize;
         SerializedProperty m_PropSHOnly;
@@ -20,6 +21,7 @@ namespace GaussianSplatting.Editor
         {
             m_PropScript = serializedObject.FindProperty("m_Script");
             m_PropTransparency = serializedObject.FindProperty("m_Transparency");
+            m_PropSortAngle = serializedObject.FindProperty("m_SortAngleDegrees");
             m_PropTemporalFilter = serializedObject.FindProperty("m_TemporalFilter");
             m_PropRenderMode = serializedObject.FindProperty("m_RenderMode");
             m_PropPointSize = serializedObject.FindProperty("m_PointDisplaySize");
@@ -34,6 +36,9 @@ namespace GaussianSplatting.Editor
             EditorGUILayout.PropertyField(m_PropTransparency);
             if (!m_PropTransparency.hasMultipleDifferentValues && m_PropTransparency.intValue == (int)TransparencyMode.Stochastic)
                 EditorGUILayout.PropertyField(m_PropTemporalFilter);
+            if (!m_PropTransparency.hasMultipleDifferentValues && m_PropTransparency.intValue == (int)TransparencyMode.SortedBlended &&
+                UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline?.GetType().Name == "UniversalRenderPipelineAsset")
+                EditorGUILayout.PropertyField(m_PropSortAngle);
             EditorGUILayout.PropertyField(m_PropRenderMode);
             if (!m_PropRenderMode.hasMultipleDifferentValues && m_PropRenderMode.intValue == (int)RenderMode.DebugPoints)
                 EditorGUILayout.PropertyField(m_PropPointSize);

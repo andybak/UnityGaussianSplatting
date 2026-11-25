@@ -194,12 +194,12 @@ SplatData LoadSplatGeometry(uint idx)
     return s;
 }
 
-void LoadSplatColor(uint idx, inout SplatData s)
+void LoadSplatColor(uint idx, inout SplatData s, uint shOrder)
 {
     uint color = _SplatColor.Load(idx * 4);
     float colorScale = asfloat(((color >> 30) + 116u) << 23); // 2^(exponent - 11)
     s.sh.col = float3(color & 1023u, (color >> 10) & 1023u, (color >> 20) & 1023u) * colorScale - 0.3125;
-    if (_SHCoefficients > 0)
+    if (shOrder > 0 && _SHCoefficients > 0)
     {
         uint offset = idx * ((_SHCoefficients * 2 + 5) / 4) * 4;
         float range = f16tof32(_SplatSH.Load(offset));
@@ -209,7 +209,7 @@ void LoadSplatColor(uint idx, inout SplatData s)
             s.sh.sh2 = LoadSplatSH(offset, 1, range);
             s.sh.sh3 = LoadSplatSH(offset, 2, range);
         }
-        if (_SHCoefficients >= 8)
+        if (shOrder >= 2 && _SHCoefficients >= 8)
         {
             s.sh.sh4 = LoadSplatSH(offset, 3, range);
             s.sh.sh5 = LoadSplatSH(offset, 4, range);
@@ -217,7 +217,7 @@ void LoadSplatColor(uint idx, inout SplatData s)
             s.sh.sh7 = LoadSplatSH(offset, 6, range);
             s.sh.sh8 = LoadSplatSH(offset, 7, range);
         }
-        if (_SHCoefficients >= 15)
+        if (shOrder >= 3 && _SHCoefficients >= 15)
         {
             s.sh.sh9 = LoadSplatSH(offset, 8, range);
             s.sh.sh10 = LoadSplatSH(offset, 9, range);
@@ -233,7 +233,7 @@ void LoadSplatColor(uint idx, inout SplatData s)
 SplatData LoadSplatData(uint idx)
 {
     SplatData s = LoadSplatGeometry(idx);
-    LoadSplatColor(idx, s);
+    LoadSplatColor(idx, s, 3);
     return s;
 }
 

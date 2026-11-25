@@ -50,13 +50,101 @@ namespace GaussianSplatting.Runtime
                 internal int Width, Height;
             }
 
+            internal static bool UseDirectPath => GaussianSplatRenderOptions.instance.m_RenderMode == RenderMode.DebugPoints ||
+                (GaussianSplatRenderOptions.instance.m_Transparency == TransparencyMode.Stochastic &&
+                 GaussianSplatRenderOptions.instance.temporalFilter == StochasticTemporalFilter.None);
+
+            bool m_ReportedUnsupportedConfiguration;
+
+            class DirectPassData
+            {
+                internal UniversalCameraData Camera;
+                internal int Samples;
+                internal bool RenderIntoTexture;
+                internal Rect Viewport;
+                internal bool SetViewport;
+                internal bool Debug;
+            }
+
+            void RecordDirect(RenderGraph graph, UniversalCameraData camera, UniversalResourceData resources)
+            {
+                m_Temporal.Reset(camera.camera);
+                var desc = graph.GetTextureDesc(resources.activeColorTexture);
+                int samples = (int)desc.msaaSamples;
+                bool debug = GaussianSplatRenderOptions.instance.m_RenderMode == RenderMode.DebugPoints;
+                var descCamera = camera.cameraTargetDescriptor;
+                bool xrBackbuffer = camera.xr.enabled && resources.isActiveTargetBackBuffer;
+                var viewport = xrBackbuffer ? camera.xr.GetViewport() : new Rect(0, 0, descCamera.width, descCamera.height);
+                if (!debug)
+                {
+                    using (var prepare = graph.AddUnsafePass<DirectPassData>("GaussianSplat.PrepareViews", out var data))
+                    {
+                        data.Camera = camera;
+                        data.Viewport = viewport;
+                        data.RenderIntoTexture = !resources.isActiveTargetBackBuffer || camera.camera.targetTexture != null;
+                        data.Samples = samples;
+                        prepare.AllowGlobalStateModification(true);
+                        prepare.AllowPassCulling(false);
+                        prepare.SetRenderFunc(static (DirectPassData pass, UnsafeGraphContext ctx) =>
+                        {
+                            var cmd = CommandBufferHelpers.GetNativeCommandBuffer(ctx.cmd);
+                            var cam = pass.Camera;
+                            var system = GaussianSplatRenderSystem.instance;
+                            int width = Mathf.RoundToInt(pass.Viewport.width);
+                            int height = Mathf.RoundToInt(pass.Viewport.height);
+                            bool stereo = cam.xr.enabled && cam.xr.singlePassEnabled;
+                            system.CacheViewDataForAllSplats(cam.camera, cmd,
+                                GL.GetGPUProjectionMatrix(cam.GetProjectionMatrix(), pass.RenderIntoTexture),
+                                cam.GetViewMatrix(), width, height,
+                                stereo ? GL.GetGPUProjectionMatrix(cam.GetProjectionMatrix(1), pass.RenderIntoTexture) : null,
+                                stereo ? cam.GetViewMatrix(1) : null, directColor: true);
+                            system.PrepareSplatDraw(cmd, width, height, pass.Samples);
+                        });
+                    }
+                }
+
+                using var draw = graph.AddRasterRenderPass<DirectPassData>("GaussianSplat.Direct", out var raster);
+                raster.Debug = debug;
+                raster.SetViewport = xrBackbuffer;
+                raster.Viewport = viewport;
+                raster.Samples = samples;
+                int slice = camera.xr.enabled && !camera.xr.singlePassEnabled ? camera.xr.GetTextureArraySlice() : -1;
+                draw.SetRenderAttachment(resources.activeColorTexture, 0, AccessFlags.ReadWrite, 0, slice);
+                draw.SetRenderAttachmentDepth(resources.activeDepthTexture, AccessFlags.ReadWrite, 0, slice);
+                if (camera.xr.enabled && resources.isActiveTargetBackBuffer)
+                    draw.EnableFoveatedRasterization(camera.xr.supportsFoveatedRendering);
+                draw.SetRenderFunc(static (DirectPassData pass, RasterGraphContext ctx) =>
+                {
+                    if (pass.SetViewport)
+                        ctx.cmd.SetViewport(pass.Viewport);
+                    var system = GaussianSplatRenderSystem.instance;
+                    if (pass.Debug)
+                        system.DrawDebugDirect(ctx.cmd, pass.Viewport);
+                    else
+                        system.DrawDirect(ctx.cmd, pass.Samples);
+                });
+            }
+
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
-                using var builder = renderGraph.AddUnsafePass(ProfilerTag, out PassData passData);
-
                 var cameraData = frameData.Get<UniversalCameraData>();
                 var resourceData = frameData.Get<UniversalResourceData>();
 
+                if (UseDirectPath)
+                {
+                    m_ReportedUnsupportedConfiguration = false;
+                    RecordDirect(renderGraph, cameraData, resourceData);
+                    return;
+                }
+                if (cameraData.xr.singlePassEnabled || renderGraph.GetTextureDesc(resourceData.activeDepthTexture).msaaSamples != MSAASamples.None)
+                {
+                    if (!m_ReportedUnsupportedConfiguration)
+                        Debug.LogWarning("[GaussianSplatURP] Single-pass XR and MSAA require Stochastic transparency with Temporal Filter set to None, or Debug Points.");
+                    m_ReportedUnsupportedConfiguration = true;
+                    m_Temporal.Reset(cameraData.camera);
+                    return;
+                }
+                using var builder = renderGraph.AddUnsafePass(ProfilerTag, out PassData passData);
                 RenderTextureDescriptor rtDesc = cameraData.cameraTargetDescriptor;
                 // scratch color/depth are 2D for the current eye. note that camera targets
                 // can be arrays even in multi-pass
@@ -123,7 +211,7 @@ namespace GaussianSplatting.Runtime
                     commandBuffer.SetViewport(new Rect(0, 0, data.Width, data.Height));
                     var system = GaussianSplatRenderSystem.instance;
                     var camera = data.CameraData.camera;
-                    Material matComposite = system.SortAndRenderSplats(camera, commandBuffer, data.Projection, data.Width, data.Height, data.View);
+                    Material matComposite = system.SortAndRenderSplats(camera, commandBuffer, data.Projection, data.Width, data.Height, data.View, reuseDepthOrder: true);
                     commandBuffer.BeginSample(GaussianSplatRenderSystem.s_ProfCompose);
                     if (data.Filter != StochasticTemporalFilter.None)
                     {
@@ -158,7 +246,7 @@ namespace GaussianSplatting.Runtime
         {
             m_HasCamera = false;
             var system = GaussianSplatRenderSystem.instance;
-            if (!system.GatherSplatsForCamera(cameraData.camera))
+            if (!system.GatherSplatsForCamera(cameraData.camera, GSRenderPass.UseDirectPath && cameraData.xr.enabled ? cameraData.xr.viewCount : 1))
             {
                 m_Pass.Reset(cameraData.camera);
                 return;
@@ -171,6 +259,7 @@ namespace GaussianSplatting.Runtime
         {
             if (!m_HasCamera)
                 return;
+            m_Pass.requiresIntermediateTexture = !GSRenderPass.UseDirectPath;
             renderer.EnqueuePass(m_Pass);
         }
 

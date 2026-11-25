@@ -53,6 +53,8 @@ namespace GaussianSplatting.Runtime
         [Header("Options")]
         [Tooltip("Gaussian splat transparency rendering algorithm")]
         public TransparencyMode m_Transparency = TransparencyMode.SortedBlended;
+        [Tooltip("URP sorted blending: reuse the depth order until the view direction changes by this many degrees. Higher values may change blending where splats overlap.")]
+        [Range(0, 5)] public float m_SortAngleDegrees;
         [Tooltip("Stochastic temporal filtering")]
         public StochasticTemporalFilter m_TemporalFilter = StochasticTemporalFilter.Reprojected;
 

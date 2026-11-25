@@ -36,6 +36,10 @@ RWStructuredBuffer<uint> _SplatSortKeys;
 uint _SplatCount;
 uint _SplatOffset;
 uint _WriteSortKeys;
+uint _DirectColor;
+uint _RightEyeStride;
+float4x4 _RightMatrixMV, _RightMatrixP, _RightMatrixVP;
+float4 _RightEyePosition;
 
 // radix sort etc. friendly, see http://stereopsis.com/radix.html
 uint FloatToSortableUint(float f)
@@ -121,58 +125,53 @@ void CSCalcViewData (uint3 id : SV_DispatchThreadID)
         return;
 
     SplatData splat = LoadSplatGeometry(idx);
-    SplatViewData view = (SplatViewData)0;
-    
-    float3 centerWorldPos = mul(_MatrixObjectToWorld, float4(splat.pos,1)).xyz;
-    float4 centerClipPos = mul(_MatrixVP, float4(centerWorldPos, 1));
-    half opacityScale = _SplatOpacityScale;
-    float splatScale = _SplatScale;
+    float3 centerWorldPos = mul(_MatrixObjectToWorld, float4(splat.pos, 1)).xyz;
+    float4 leftClip = mul(_MatrixVP, float4(centerWorldPos, 1));
+    float4 rightClip = 0;
+    if (_RightEyeStride != 0)
+        rightClip = mul(_RightMatrixVP, float4(centerWorldPos, 1));
 
-    view.pos.x = asfloat(0x7f800000u); // culled unless a visible center is written below
-    bool behindCam = centerClipPos.w <= 0;
-    if (!behindCam)
+    float3 cov0 = 0, cov1 = 0;
+    if (leftClip.w > 0 || rightClip.w > 0)
     {
-        float4 boxRot = splat.rot;
-        float3 boxSize = splat.scale;
-
-        float3x3 splatRotScaleMat = CalcMatrixFromRotationScale(boxRot, boxSize);
-
-        float3 cov3d0, cov3d1;
-        CalcCovariance3D(splatRotScaleMat, cov3d0, cov3d1);
-        float splatScale2 = splatScale * splatScale;
-        cov3d0 *= splatScale2;
-        cov3d1 *= splatScale2;
-        float3 cov2d = CalcCovariance2D(splat.pos, cov3d0, cov3d1, _MatrixMV, _MatrixP, _VecScreenParams);
-        
-        float2 axis1, axis2;
-        DecomposeCovariance(cov2d, axis1, axis2);
-
-        // frustum culling:
-        // quad corners are +/-2 along each axis, then
-        // pixels are converted to clip space by 2 / screen size * w
-        float2 extentClip = 4 * (abs(axis1) + abs(axis2)) / _VecScreenParams.xy * centerClipPos.w;
-        bool outsideView = any(abs(centerClipPos.xy) > centerClipPos.w + extentClip);
-        if (!outsideView)
-        {
-            view.pos = centerClipPos.xyz / centerClipPos.w;
-            view.axis1 = f32tof16(axis1.x) | (f32tof16(axis1.y) << 16);
-            view.axis2 = f32tof16(axis2.x) | (f32tof16(axis2.y) << 16);
-            // load color / SH only for splats that passed frustum culling
-            LoadSplatColor(idx, splat);
-            float3 worldViewDir = _VecWorldSpaceCameraPos.xyz - centerWorldPos;
-            float3 objViewDir = mul((float3x3)_MatrixWorldToObject, worldViewDir);
-            objViewDir = normalize(objViewDir);
-
-            half4 col;
-            col.rgb = ShadeSH(splat.sh, objViewDir, _SHOrder, _SHOnly != 0);
-            col.a = min(splat.opacity * opacityScale, 65000);
-            view.color.x = (f32tof16(col.r) << 16) | f32tof16(col.g);
-            view.color.y = (f32tof16(col.b) << 16) | f32tof16(col.a);
-        }
+        CalcCovariance3D(CalcMatrixFromRotationScale(splat.rot, splat.scale), cov0, cov1);
+        cov0 *= _SplatScale * _SplatScale;
+        cov1 *= _SplatScale * _SplatScale;
     }
-    
+
     uint outputIndex = _SplatOffset + idx;
-    _SplatViewData[outputIndex] = view;
+    bool colorLoaded = false;
+    for (uint eye = 0; eye < (_RightEyeStride == 0 ? 1u : 2u); ++eye)
+    {
+        SplatViewData view = (SplatViewData)0;
+        view.pos.x = asfloat(0x7f800000u);
+        float4 clip = eye == 0 ? leftClip : rightClip;
+        if (clip.w > 0)
+        {
+            float3 cov = CalcCovariance2D(splat.pos, cov0, cov1,
+                eye == 0 ? _MatrixMV : _RightMatrixMV, eye == 0 ? _MatrixP : _RightMatrixP, _VecScreenParams);
+            float2 axis1, axis2;
+            DecomposeCovariance(cov, axis1, axis2);
+            float2 extent = 4 * (abs(axis1) + abs(axis2)) / _VecScreenParams.xy * clip.w;
+            if (all(abs(clip.xy) <= clip.w + extent))
+            {
+                view.pos = clip.xyz / clip.w;
+                view.axis1 = f32tof16(axis1.x) | (f32tof16(axis1.y) << 16);
+                view.axis2 = f32tof16(axis2.x) | (f32tof16(axis2.y) << 16);
+                if (!colorLoaded)
+                {
+                    LoadSplatColor(idx, splat, _SHOrder);
+                    colorLoaded = true;
+                }
+                float3 direction = (eye == 0 ? _VecWorldSpaceCameraPos.xyz : _RightEyePosition.xyz) - centerWorldPos;
+                half3 rgb = ShadeSH(splat.sh, normalize(mul((float3x3)_MatrixWorldToObject, direction)), _SHOrder, _SHOnly != 0);
+                if (_DirectColor != 0) rgb = GammaToLinearSpace(rgb);
+                half opacity = min(splat.opacity * _SplatOpacityScale, 65000);
+                view.color = uint2((f32tof16(rgb.r) << 16) | f32tof16(rgb.g), (f32tof16(rgb.b) << 16) | f32tof16(opacity));
+            }
+        }
+        _SplatViewData[outputIndex + eye * _RightEyeStride] = view;
+    }
     if (_WriteSortKeys != 0)
     {
         float depth = -mul(_MatrixMV, float4(splat.pos, 1)).z;
