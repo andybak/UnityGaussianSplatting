@@ -23,7 +23,7 @@ public static partial class GaussianDirectValidation
     const int PoseRate = 90;
     const int MeasuredFrames = 4 * PoseRate;
     static GaussianSplatRenderer s_Renderer;
-    static GaussianSplatRenderOptions s_Options;
+    static GaussianSplatRenderingOptions s_Options;
     static Camera s_Camera;
     static DateTime s_Deadline;
     static Color32[] s_Reference;
@@ -43,7 +43,7 @@ public static partial class GaussianDirectValidation
             s_UseCapture = pathIndex >= 0;
             if (s_UseCapture) source = Path.GetFullPath(args[pathIndex + 1]);
             else WriteFixture(source);
-            s_Options = new GameObject("Render options").AddComponent<GaussianSplatRenderOptions>();
+            s_Options = new GameObject("Render options").AddComponent<GaussianSplatRenderingOptions>();
             s_Options.m_TemporalFilter = StochasticTemporalFilter.None;
             s_Renderer = new GameObject("Benchmark splats").AddComponent<GaussianSplatRenderer>();
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-gsWideSplats") >= 0)

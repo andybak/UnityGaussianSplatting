@@ -59,7 +59,7 @@ namespace GaussianSplatting.Runtime
         bool CanReuseDepthAxis(Vector3 depthAxis)
         {
             if (depthAxis.Equals(m_SortedDepthAxis)) return true;
-            float threshold = GaussianSplatRenderOptions.instance.m_SortAngleDegrees;
+            float threshold = GaussianSplatRenderingOptions.instance.m_SortAngleDegrees;
             return threshold > 0 && Vector3.Angle(m_SortedDepthAxis, depthAxis) < threshold;
         }
 
@@ -380,7 +380,7 @@ namespace GaussianSplatting.Runtime
                 gs.SetDataOnMaterial(mpb);
                 mpb.SetMatrix("_SplatLocalToWorld", gs.transform.localToWorldMatrix);
                 mpb.SetVector(GaussianSplatRenderer.Props.SplatScreenSize, new Vector4(viewport.width, viewport.height, 0, 0));
-                mpb.SetFloat(GaussianSplatRenderer.Props.SplatSize, GaussianSplatRenderOptions.instance.m_PointDisplaySize);
+                mpb.SetFloat(GaussianSplatRenderer.Props.SplatSize, GaussianSplatRenderingOptions.instance.m_PointDisplaySize);
                 cmd.DrawProcedural(m_QuadIndexBuffer, Matrix4x4.identity, m_MatDebugPoints, 1,
                     MeshTopology.Triangles, 6, gs.splatCount, mpb);
             }
@@ -389,7 +389,7 @@ namespace GaussianSplatting.Runtime
         internal void PrepareDirectViews(Camera camera, CommandBuffer cmd, Matrix4x4 projection, Matrix4x4 view,
             int width, int height, Matrix4x4? rightProjection, Matrix4x4? rightView)
         {
-            bool sort = GaussianSplatRenderOptions.instance.needSorting && NeedsDepthSort(view);
+            bool sort = GaussianSplatRenderingOptions.instance.needSorting && NeedsDepthSort(view);
             CacheViewDataForAllSplats(camera, cmd, projection, view, width, height, rightProjection, rightView,
                 updateSortKeys: sort, directColor: true);
             if (sort)
@@ -399,7 +399,7 @@ namespace GaussianSplatting.Runtime
         internal void DrawDirect(RasterCommandBuffer cmd, int samples)
         {
             cmd.BeginSample(s_ProfDraw);
-            int pass = GaussianSplatRenderOptions.instance.needSorting ? 3 : samples > 1 ? 2 : 1;
+            int pass = GaussianSplatRenderingOptions.instance.needSorting ? 3 : samples > 1 ? 2 : 1;
             cmd.DrawProcedural(m_QuadIndexBuffer, Matrix4x4.identity, m_MatSplats, pass,
                 MeshTopology.Triangles, 6, m_SplatCount, m_DrawProperties);
             cmd.EndSample(s_ProfDraw);
@@ -410,7 +410,7 @@ namespace GaussianSplatting.Runtime
         {
             EnsureMaterials();
             EnsureQuadIndexBuffer();
-            var settings = GaussianSplatRenderOptions.instance;
+            var settings = GaussianSplatRenderingOptions.instance;
             bool stochastic = settings.m_Transparency == TransparencyMode.Stochastic;
             bool reprojected = stochastic && settings.m_RenderMode == RenderMode.Splats &&
                                settings.m_TemporalFilter == StochasticTemporalFilter.Reprojected;
@@ -464,7 +464,7 @@ namespace GaussianSplatting.Runtime
             Matrix4x4 viewMatrix = view ?? cam.worldToCameraMatrix;
             width = width > 0 ? width : (XRSettings.eyeTextureWidth != 0 ? XRSettings.eyeTextureWidth : cam.pixelWidth);
             height = height > 0 ? height : (XRSettings.eyeTextureHeight != 0 ? XRSettings.eyeTextureHeight : cam.pixelHeight);
-            bool sort = GaussianSplatRenderOptions.instance.needSorting;
+            bool sort = GaussianSplatRenderingOptions.instance.needSorting;
             if (!reuseDepthOrder)
                 m_SortedObjects.Clear();
             else if (sort)

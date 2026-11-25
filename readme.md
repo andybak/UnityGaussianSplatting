@@ -38,8 +38,7 @@ directory, absolute filesystem path, or a URL.
 
 Add a `GaussianSplatRenderingOptions` component to any GameObject to change global rendering options
 (transparency method, temporal filtering, debug render mode and SH-only display).
-**Sorted Blended** is the default. **Stochastic** uses noisy alpha testing and depth writes without sorting;
-and can use several temporal filtering methods. Without an options component, defaults are used.
+New components and scenes without an options component default to **Stochastic** transparency with **Temporal Filter** set to **None**. The URP sample uses **4× MSAA**. This was the fastest single-pass stereo configuration measured with MSAA in our desktop benchmark. Choose **Sorted Blended** for a steadier image during head movement. Existing components keep their saved settings. See the [URP performance modes](docs/render-pipeline-integration.md#urp-performance-modes) for timings and trade-offs.
 
 Currently two file formats are supported:
 - PLY format from the original 3DGS paper (in the official paper models, the correct files

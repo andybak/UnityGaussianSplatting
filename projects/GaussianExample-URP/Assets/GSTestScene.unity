@@ -769,8 +769,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9344df23bed5464c9e1e40f77e03e0b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Transparency: 0
-  m_TemporalFilter: 2
+  m_Transparency: 1
+  m_TemporalFilter: 0
   m_RenderMode: 0
   m_PointDisplaySize: 3
   m_SHOnly: 0

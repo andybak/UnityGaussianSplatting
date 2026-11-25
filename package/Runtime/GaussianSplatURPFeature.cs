@@ -50,9 +50,9 @@ namespace GaussianSplatting.Runtime
                 internal int Width, Height;
             }
 
-            internal static bool UseDirectPath => GaussianSplatRenderOptions.instance.m_RenderMode == RenderMode.DebugPoints ||
-                (GaussianSplatRenderOptions.instance.m_Transparency == TransparencyMode.Stochastic &&
-                 GaussianSplatRenderOptions.instance.temporalFilter == StochasticTemporalFilter.None);
+            internal static bool UseDirectPath => GaussianSplatRenderingOptions.instance.m_RenderMode == RenderMode.DebugPoints ||
+                (GaussianSplatRenderingOptions.instance.m_Transparency == TransparencyMode.Stochastic &&
+                 GaussianSplatRenderingOptions.instance.temporalFilter == StochasticTemporalFilter.None);
 
             bool m_ReportedUnsupportedConfiguration;
 
@@ -71,7 +71,7 @@ namespace GaussianSplatting.Runtime
                 m_Temporal.Reset(camera.camera);
                 var desc = graph.GetTextureDesc(resources.activeColorTexture);
                 int samples = (int)desc.msaaSamples;
-                bool debug = GaussianSplatRenderOptions.instance.m_RenderMode == RenderMode.DebugPoints;
+                bool debug = GaussianSplatRenderingOptions.instance.m_RenderMode == RenderMode.DebugPoints;
                 var descCamera = camera.cameraTargetDescriptor;
                 bool xrBackbuffer = camera.xr.enabled && resources.isActiveTargetBackBuffer;
                 var viewport = xrBackbuffer ? camera.xr.GetViewport() : new Rect(0, 0, descCamera.width, descCamera.height);
@@ -131,7 +131,7 @@ namespace GaussianSplatting.Runtime
                 var resourceData = frameData.Get<UniversalResourceData>();
 
                 bool layeredOrMsaa = cameraData.xr.singlePassEnabled || renderGraph.GetTextureDesc(resourceData.activeDepthTexture).msaaSamples != MSAASamples.None;
-                if (UseDirectPath || (layeredOrMsaa && GaussianSplatRenderOptions.instance.needSorting))
+                if (UseDirectPath || (layeredOrMsaa && GaussianSplatRenderingOptions.instance.needSorting))
                 {
                     m_ReportedUnsupportedConfiguration = false;
                     RecordDirect(renderGraph, cameraData, resourceData);
@@ -247,7 +247,7 @@ namespace GaussianSplatting.Runtime
         {
             m_HasCamera = false;
             var system = GaussianSplatRenderSystem.instance;
-            if (!system.GatherSplatsForCamera(cameraData.camera, cameraData.xr.enabled && (GSRenderPass.UseDirectPath || GaussianSplatRenderOptions.instance.needSorting) ? cameraData.xr.viewCount : 1))
+            if (!system.GatherSplatsForCamera(cameraData.camera, cameraData.xr.enabled && (GSRenderPass.UseDirectPath || GaussianSplatRenderingOptions.instance.needSorting) ? cameraData.xr.viewCount : 1))
             {
                 m_Pass.Reset(cameraData.camera);
                 return;
@@ -260,7 +260,7 @@ namespace GaussianSplatting.Runtime
         {
             if (!m_HasCamera)
                 return;
-            m_Pass.requiresIntermediateTexture = !GSRenderPass.UseDirectPath && !(GaussianSplatRenderOptions.instance.needSorting &&
+            m_Pass.requiresIntermediateTexture = !GSRenderPass.UseDirectPath && !(GaussianSplatRenderingOptions.instance.needSorting &&
                 (renderingData.cameraData.xr.singlePassEnabled || renderingData.cameraData.cameraTargetDescriptor.msaaSamples > 1));
             renderer.EnqueuePass(m_Pass);
         }

@@ -7,7 +7,7 @@
   just have `GaussianSplatRenderer` components.
 - URP: add `GaussianSplatURPFeature` to the URP renderer settings.
   - Render Graph "Compatibility Mode" in URP settings must be turned off!
-  - For stochastic single-pass XR, select **Stochastic** transparency, **None** for Temporal Filter, and **Splats** for Render Mode on the Gaussian Splat Render Options component. The URP sample exposes these settings on the GaussianSplats object.
+  - For stochastic single-pass XR, select **Stochastic** transparency, **None** for Temporal Filter, and **Splats** for Render Mode on the Gaussian Splat Rendering Options component. The URP sample exposes these settings on the GaussianRenderOptions object.
   - This configuration draws directly into the camera's color and depth targets. The URP asset controls MSAA. With multisampling enabled, each splat writes a stochastic coverage mask.
   - With **Sorted Blended**, the renderer keeps the current depth order while a static scene is viewed with a translating camera. **Sort Angle Degrees** sets how far the viewing direction can turn before a new sort. The default of zero re-sorts for any change of depth axis. A positive value can reduce sorting during small head rotations at the cost of possible blending changes where splats overlap. The projected splats still follow the current eye pose on every render.
   - Single-pass XR or MSAA selects direct back-to-front blending for Sorted Blended. It projects both eyes separately and uses left-eye depth order for both. Parallel eyes share the exact depth ordering at zero angular tolerance. Canted displays can show ordering differences. Direct blending converts individual splat colors before blending, which can change overlapping colors relative to the legacy composite.
@@ -19,6 +19,19 @@
 
 Note that the project requires DX12 or Vulkan on Windows, i.e. **DX11 will not work**. Go to player settings graphics APIs
 section and change Windows to use DX12.
+
+### URP performance modes
+
+Select the **GaussianRenderOptions** GameObject in the URP sample and open **Gaussian Splat Rendering Options** in the Inspector. Keep **Render Mode** on **Splats** for normal rendering. The sample enables **4× MSAA** in its active URP pipeline asset. In another project, choose the MSAA level in your own URP asset and select single-pass stereo in your XR provider settings.
+
+| Settings | When to choose them |
+|---|---|
+| **Stochastic**, **Temporal Filter = None** (default) | Fastest measured stereo mode with 4× MSAA. Skips depth sorting and frame history. Grain can shimmer as the view moves. |
+| **Sorted Blended**, **Sort Angle Degrees = 1** | Steadier stereo image. Updates each eye every frame and reuses the depth order through small rotations. Overlapping splats can occasionally blend in a different order. Supports single-pass and MSAA. |
+| **Sorted Blended**, **Sort Angle Degrees = 0** | Prioritizes depth ordering. A change in view direction triggers a sort. Pure translation can reuse the order. Supports single-pass and MSAA. |
+| **Stochastic**, **Simple Accumulation** or **Reprojected** | Uses previous frames to reduce grain. Reprojection accounts for camera motion and adds processing cost. These URP modes require MSAA off and, in XR, multipass. |
+
+On an RTX 4090 with 1.16 million splats, median time per stereo pair during standing sway was **1.91 ms** for default stochastic 4× and **2.61 ms** for sorted 4× at 1°. Both used the same simulated single-pass setup. Stochastic used **26.8% less time**. Sorted reduced measured frame-to-frame image error by **89.5%**. Against legacy exact sorted rendering with two camera renders at 1× (3.29 ms), the default used **42.0% less time**. Headset timings are still unmeasured. [Benchmark methodology and results](standing-fixation-benchmark.md)
 
 ### How do gaussians interact with regular rendering?
 
