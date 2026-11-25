@@ -64,5 +64,24 @@ CGPROGRAM
 #include "GaussianSplatDraw.hlsl"
 ENDCG
         }
+        Pass
+        {
+            ZWrite Off
+            Blend One OneMinusSrcAlpha
+            Cull Off
+
+CGPROGRAM
+#pragma vertex vert
+#pragma fragment frag
+#pragma require compute
+#pragma use_dxc
+#pragma multi_compile_instancing
+#pragma multi_compile _ STEREO_INSTANCING_ON STEREO_MULTIVIEW_ON
+#define SPLAT_DIRECT 1
+#define SPLAT_SORTED_DIRECT 1
+
+#include "GaussianSplatDraw.hlsl"
+ENDCG
+        }
     }
 }

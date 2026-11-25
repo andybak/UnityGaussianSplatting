@@ -386,10 +386,21 @@ namespace GaussianSplatting.Runtime
             }
         }
 
+        internal void PrepareDirectViews(Camera camera, CommandBuffer cmd, Matrix4x4 projection, Matrix4x4 view,
+            int width, int height, Matrix4x4? rightProjection, Matrix4x4? rightView)
+        {
+            bool sort = GaussianSplatRenderOptions.instance.needSorting && NeedsDepthSort(view);
+            CacheViewDataForAllSplats(camera, cmd, projection, view, width, height, rightProjection, rightView,
+                updateSortKeys: sort, directColor: true);
+            if (sort)
+                SortAllSplats(camera, cmd);
+        }
+
         internal void DrawDirect(RasterCommandBuffer cmd, int samples)
         {
             cmd.BeginSample(s_ProfDraw);
-            cmd.DrawProcedural(m_QuadIndexBuffer, Matrix4x4.identity, m_MatSplats, samples > 1 ? 2 : 1,
+            int pass = GaussianSplatRenderOptions.instance.needSorting ? 3 : samples > 1 ? 2 : 1;
+            cmd.DrawProcedural(m_QuadIndexBuffer, Matrix4x4.identity, m_MatSplats, pass,
                 MeshTopology.Triangles, 6, m_SplatCount, m_DrawProperties);
             cmd.EndSample(s_ProfDraw);
         }

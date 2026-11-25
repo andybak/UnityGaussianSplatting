@@ -93,11 +93,11 @@ namespace GaussianSplatting.Runtime
                             int width = Mathf.RoundToInt(pass.Viewport.width);
                             int height = Mathf.RoundToInt(pass.Viewport.height);
                             bool stereo = cam.xr.enabled && cam.xr.singlePassEnabled;
-                            system.CacheViewDataForAllSplats(cam.camera, cmd,
+                            system.PrepareDirectViews(cam.camera, cmd,
                                 GL.GetGPUProjectionMatrix(cam.GetProjectionMatrix(), pass.RenderIntoTexture),
                                 cam.GetViewMatrix(), width, height,
                                 stereo ? GL.GetGPUProjectionMatrix(cam.GetProjectionMatrix(1), pass.RenderIntoTexture) : null,
-                                stereo ? cam.GetViewMatrix(1) : null, directColor: true);
+                                stereo ? cam.GetViewMatrix(1) : null);
                             system.PrepareSplatDraw(cmd, width, height, pass.Samples);
                         });
                     }
@@ -130,16 +130,17 @@ namespace GaussianSplatting.Runtime
                 var cameraData = frameData.Get<UniversalCameraData>();
                 var resourceData = frameData.Get<UniversalResourceData>();
 
-                if (UseDirectPath)
+                bool layeredOrMsaa = cameraData.xr.singlePassEnabled || renderGraph.GetTextureDesc(resourceData.activeDepthTexture).msaaSamples != MSAASamples.None;
+                if (UseDirectPath || (layeredOrMsaa && GaussianSplatRenderOptions.instance.needSorting))
                 {
                     m_ReportedUnsupportedConfiguration = false;
                     RecordDirect(renderGraph, cameraData, resourceData);
                     return;
                 }
-                if (cameraData.xr.singlePassEnabled || renderGraph.GetTextureDesc(resourceData.activeDepthTexture).msaaSamples != MSAASamples.None)
+                if (layeredOrMsaa)
                 {
                     if (!m_ReportedUnsupportedConfiguration)
-                        Debug.LogWarning("[GaussianSplatURP] Single-pass XR and MSAA require Stochastic transparency with Temporal Filter set to None, or Debug Points.");
+                        Debug.LogWarning("[GaussianSplatURP] Stochastic temporal filtering requires multipass and MSAA disabled.");
                     m_ReportedUnsupportedConfiguration = true;
                     m_Temporal.Reset(cameraData.camera);
                     return;
@@ -246,7 +247,7 @@ namespace GaussianSplatting.Runtime
         {
             m_HasCamera = false;
             var system = GaussianSplatRenderSystem.instance;
-            if (!system.GatherSplatsForCamera(cameraData.camera, GSRenderPass.UseDirectPath && cameraData.xr.enabled ? cameraData.xr.viewCount : 1))
+            if (!system.GatherSplatsForCamera(cameraData.camera, cameraData.xr.enabled && (GSRenderPass.UseDirectPath || GaussianSplatRenderOptions.instance.needSorting) ? cameraData.xr.viewCount : 1))
             {
                 m_Pass.Reset(cameraData.camera);
                 return;
@@ -259,7 +260,8 @@ namespace GaussianSplatting.Runtime
         {
             if (!m_HasCamera)
                 return;
-            m_Pass.requiresIntermediateTexture = !GSRenderPass.UseDirectPath;
+            m_Pass.requiresIntermediateTexture = !GSRenderPass.UseDirectPath && !(GaussianSplatRenderOptions.instance.needSorting &&
+                (renderingData.cameraData.xr.singlePassEnabled || renderingData.cameraData.cameraTargetDescriptor.msaaSamples > 1));
             renderer.EnqueuePass(m_Pass);
         }
 

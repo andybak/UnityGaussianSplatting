@@ -39,7 +39,9 @@ v2f vert (SplatVertex input)
 #endif
     viewOffset = unity_StereoEyeIndex * _SplatViewStride;
 #endif
-#ifndef SPLAT_DIRECT
+#if defined(SPLAT_SORTED_DIRECT)
+    instID = _OrderBuffer[_SplatViewStride - 1 - instID];
+#elif !defined(SPLAT_DIRECT)
     if (sgu_transparencyMode == 0)
         instID = _OrderBuffer[instID];
 #endif
@@ -115,6 +117,9 @@ FragOutput frag (v2f i)
     if (alpha < 1.0/255.0)
         discard;
 
+#ifdef SPLAT_SORTED_DIRECT
+    i.col.rgb *= alpha;
+#else
 #ifndef SPLAT_DIRECT
     if (sgu_transparencyMode == 0)
     {
@@ -140,6 +145,7 @@ FragOutput frag (v2f i)
             discard;
         alpha = 1;
     }
+#endif
     FragOutput res;
 #ifdef SPLAT_MSAA
     res.coverage = coverage;

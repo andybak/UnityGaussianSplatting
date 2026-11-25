@@ -7,11 +7,12 @@
   just have `GaussianSplatRenderer` components.
 - URP: add `GaussianSplatURPFeature` to the URP renderer settings.
   - Render Graph "Compatibility Mode" in URP settings must be turned off!
-  - For single-pass XR, select **Stochastic** transparency, **None** for Temporal Filter, and **Splats** for Render Mode on the Gaussian Splat Render Options component. The URP sample exposes these settings on the GaussianSplats object.
+  - For stochastic single-pass XR, select **Stochastic** transparency, **None** for Temporal Filter, and **Splats** for Render Mode on the Gaussian Splat Render Options component. The URP sample exposes these settings on the GaussianSplats object.
   - This configuration draws directly into the camera's color and depth targets. The URP asset controls MSAA. With multisampling enabled, each splat writes a stochastic coverage mask.
   - With **Sorted Blended**, the renderer keeps the current depth order while a static scene is viewed with a translating camera. **Sort Angle Degrees** sets how far the viewing direction can turn before a new sort. The default of zero re-sorts for any change of depth axis. A positive value can reduce sorting during small head rotations at the cost of possible blending changes where splats overlap. The projected splats still follow the current eye pose on every render.
+  - Single-pass XR or MSAA selects direct back-to-front blending for Sorted Blended. It projects both eyes separately and uses left-eye depth order for both. Parallel eyes share the exact depth ordering at zero angular tolerance. Canted displays can show ordering differences. Direct blending converts individual splat colors before blending, which can change overlapping colors relative to the legacy composite.
   - Debug Points can also draw directly into stereo and MSAA camera targets.
-  - Use OpenXR Multi-Pass with MSAA disabled for sorted blending and temporal reconstruction.
+  - Use OpenXR Multi-Pass with MSAA disabled for stochastic temporal reconstruction.
 - HDRP: add CustomPass volume object and a `GaussianSplatHDRPPass` entry to it. It can be setup to render before transparencies,
   or after postprocess. Doing it after postprocess often produces better results, since before transparencies does not play well
   with HDRP auto-exposure thingamabobs.
@@ -32,4 +33,4 @@ No. No lights, shadows, reflection probes, lightmaps, skybox, any of that stuff.
 
 ### Known issues where things do not work
 
-- MSAA support is limited to the URP direct stochastic path described above.
+- MSAA support is limited to the URP direct paths described above.
