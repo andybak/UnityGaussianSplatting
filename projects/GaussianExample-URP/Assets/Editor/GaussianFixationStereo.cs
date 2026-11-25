@@ -19,7 +19,7 @@ public static partial class GaussianDirectValidation
     // Desktop simulation of the package's two-eye preparation and instanced draw.
     // Bind the package entry points once; the sample is outside its internal assembly.
     delegate void PrepareViews(Camera camera, CommandBuffer cmd, Matrix4x4 projection, Matrix4x4 view,
-        int width, int height, Matrix4x4? rightProjection, Matrix4x4? rightView, bool writeKeys, bool directColor);
+        int width, int height, Matrix4x4? rightProjection, Matrix4x4? rightView);
 
     static IEnumerable<int> FixationStereo()
     {
@@ -31,7 +31,7 @@ public static partial class GaussianDirectValidation
         const BindingFlags methods = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         T Bind<T>(string name) where T : Delegate => (T)type.GetMethod(name, methods).CreateDelegate(typeof(T), system);
         var gather = Bind<Func<Camera,int,bool>>("GatherSplatsForCamera");
-        var prepare = Bind<PrepareViews>("CacheViewDataForAllSplats");
+        var prepare = Bind<PrepareViews>("PrepareDirectViews");
         var setup = Bind<Action<CommandBuffer,int,int,int>>("PrepareSplatDraw");
         var draw = Bind<Action<RasterCommandBuffer,int>>("DrawDirect");
         var sorts = Bind<Func<int>>("get_SortDispatchCount");
@@ -45,11 +45,11 @@ public static partial class GaussianDirectValidation
         foreach (var recorder in recorders) recorder.enabled = true;
         try
         {
-            foreach (string mode in new[]{"sorted0","sorted1","stochastic4"})
+            foreach (string mode in new[]{"sorted0","sorted1","sortedStereo4","stochastic4"})
             {
-                bool direct = mode == "stochastic4";
-                s_Options.m_Transparency = direct ? TransparencyMode.Stochastic : TransparencyMode.SortedBlended;
-                s_Options.m_SortAngleDegrees = mode == "sorted1" ? 1 : 0;
+                bool direct = mode == "stochastic4" || mode == "sortedStereo4";
+                s_Options.m_Transparency = mode == "stochastic4" ? TransparencyMode.Stochastic : TransparencyMode.SortedBlended;
+                s_Options.m_SortAngleDegrees = (mode == "sorted1" || mode == "sortedStereo4") ? 1 : 0;
                 pipeline.msaaSampleCount = direct ? 4 : 1;
                 var desc = new RenderTextureDescriptor(Size, Size, RenderTextureFormat.ARGB32, 24)
                 {
@@ -90,7 +90,7 @@ public static partial class GaussianDirectValidation
                                 var proj=GL.GetGPUProjectionMatrix(s_Camera.projectionMatrix,true);
                                 if(!gather(s_Camera,2)) throw new IOException("No active splats");
                                 cmd.Clear();
-                                prepare(s_Camera,cmd,proj,s_Camera.worldToCameraMatrix,Size,Size,proj,viewR,false,true);
+                                prepare(s_Camera,cmd,proj,s_Camera.worldToCameraMatrix,Size,Size,proj,viewR);
                                 setup(cmd,Size,Size,4);
                                 cmd.SetRenderTarget(target,0,CubemapFace.Unknown,-1);
                                 cmd.ClearRenderTarget(true,true,Color.black);

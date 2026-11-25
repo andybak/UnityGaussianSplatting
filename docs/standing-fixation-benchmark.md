@@ -34,10 +34,23 @@ Stability was measured before video compression, across both eyes. The table use
 
 A trial shrank the stochastic bounding quad using each splat's opacity and the existing Gaussian alpha discard threshold. It retained a one-pixel margin at multisampled edges. Quiet median GPU draw time went from 1.511 to 1.506 ms and stereo wall time went from 1.922 to 1.930 ms. Glance GPU draw went from 1.509 to 1.507 ms. These single-run differences do not justify the added shader work. The production shader retains the existing bounds.
 
-The stable sorted approximation is currently available in URP multipass. Sorted single-pass stereo with MSAA would need renderer work. The stochastic path's faster desktop submission and substantially larger temporal error make a headset speed or quality claim premature.
+## Sorted single-pass follow-up
+
+The new direct sorted draw shares a depth order between the two parallel eyes. The following measurements come from one four-way rerun on the same RTX 4090 capture. Both direct modes use identical two-layer 4× MSAA targets and the same submission harness. The legacy sorted path uses two full URP camera renders at 1×.
+
+| Path | Quiet median wall ms | Glance median wall ms | Quiet GPU draw ms | Quiet sorts / 1080 | Quiet RGB error | Quiet temporal error |
+|---|---:|---:|---:|---:|---:|---:|
+| Legacy sorted, exact | 3.288 | 3.389 | 1.577 | 1079 | reference | reference |
+| Legacy sorted, 1° | 3.098 | 3.203 | 1.577 | 5 | 0.031 | 0.041 |
+| Direct sorted, 1°, 4× | 2.606 | 2.665 | 2.173 | 5 | 11.960 | 2.420 |
+| Direct stochastic, 4× | 1.908 | 1.940 | 1.503 | 0 | 20.544 | 23.101 |
+
+During the glance both 1° modes sorted 47 times in 180 poses. Direct sorted temporal error rose to 8.426, compared with 27.116 for stochastic. The direct sorted output was brighter than the reference in the first left-eye fixation crop. Direct rendering changes the color blending space and target precision. These captures do not isolate the contribution of each difference.
+
+A separate run through the URP camera and Render Graph measured 2.19 ms for mono sorted 4× and 1.75 ms for mono sorted 1×. That check exercised actual camera pass selection. The two-layer replay exercised instanced drawing with synthetic eye matrices. Headset timing, OpenXR multiview, and canted-eye quality still need device validation.
 
 ## Reproduce
 
-1. Launch the URP sample with `-batchmode -force-vulkan -gsFixationStereo -gsBenchmarkSource "<absolute capture path>" -executeMethod GaussianDirectValidation.Run`. The batch Editor exits on completion. Allow approximately 1.2 GB for raw eye clips.
+1. Launch the URP sample with `-batchmode -force-vulkan -gsFixationStereo -gsBenchmarkSource "<absolute capture path>" -executeMethod GaussianDirectValidation.Run`. The batch Editor exits on completion. Allow approximately 1.6 GB for raw eye clips.
 2. Run `python tools/analyze-fixation-stereo.py projects/GaussianExample-URP/Library/GSFixationStereo projects/GaussianExample-URP/Library/GSFixationResults` from the repository root with NumPy, Pillow and FFmpeg installed.
 3. Inspect `fixation.mp4`, `glance.mp4` and `measurements.json` in that results directory. Frame CSVs alongside the raw captures include the actual sort count, GPU stage times and GPU draw sample count.

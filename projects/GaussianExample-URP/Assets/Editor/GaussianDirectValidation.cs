@@ -114,7 +114,7 @@ public static partial class GaussianDirectValidation
         {
             ShaderUtil.allowAsyncCompilation = false;
             var settings = new[] {
-                (TransparencyMode.SortedBlended, 1), (TransparencyMode.Stochastic, 1), (TransparencyMode.Stochastic, 4),
+                (TransparencyMode.SortedBlended, 1), (TransparencyMode.SortedBlended, 4), (TransparencyMode.Stochastic, 1), (TransparencyMode.Stochastic, 4),
                 (TransparencyMode.Stochastic, 1), (TransparencyMode.Stochastic, 4), (TransparencyMode.SortedBlended, 1)
             };
             foreach (var (mode, samples) in settings)
@@ -208,7 +208,7 @@ public static partial class GaussianDirectValidation
             }
             finally { Object.DestroyImmediate(png); }
 
-            if (mode == TransparencyMode.SortedBlended)
+            if (mode == TransparencyMode.SortedBlended && samples == 1)
                 s_Reference = image;
             else
             {

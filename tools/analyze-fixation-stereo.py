@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-MODES = ("sorted0", "sorted1", "stochastic4")
-LABELS = ("Sorted 0 degrees", "Sorted 1 degree", "Stochastic 4x")
+MODES = ("sorted0", "sorted1", "sortedStereo4", "stochastic4")
+LABELS = ("Sorted 0 degrees", "Sorted 1 degree", "Sorted stereo 4x, 1 degree", "Stochastic 4x")
 EYES = ("L", "R")
 SIZE = 512
 
@@ -32,7 +32,7 @@ def sequence(root, output, phase):
                .reshape(-1, SIZE, SIZE, 4) for m in MODES for e in EYES}
     assert all(len(s) == 90 for s in streams.values())
     header = 28
-    canvas = Image.new("RGB", (SIZE * 3, (SIZE + header) * 2))
+    canvas = Image.new("RGB", (SIZE * len(MODES), (SIZE + header) * 2))
     labels = ImageDraw.Draw(canvas)
     for col, label in enumerate(LABELS):
         for row, eye in enumerate(EYES):

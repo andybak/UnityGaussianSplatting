@@ -216,3 +216,7 @@ The first decision gate is direct single-pass stochastic rendering with 4× MSAA
 4. High splat counts with expensive sorting offer more opportunity. Heavy screen coverage and overlap can remain raster-bound after sorting is removed.
 
 Proceed through the early prototype before investing heavily in reconstruction. Compilation or desktop rendering alone does not establish the performance target.
+
+## Desktop implementation results
+
+The URP renderer now supports sorted blending and unfiltered stochastic transparency on single-pass stereo and MSAA camera targets. The [standing-fixation benchmark](docs/standing-fixation-benchmark.md) records the desktop Vulkan timings, image differences and remaining headset checks.
